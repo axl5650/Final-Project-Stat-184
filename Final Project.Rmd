@@ -1,0 +1,272 @@
+---
+title: "Guns and Political Distrust in the US"
+output: html_notebook
+---
+###### *Stat 184 final by Angela Li*  
+
+```{r}
+library(haven)
+library(DataComputing)
+library(dplyr)
+library(mosaic)
+library(tidyverse)
+```
+
+### Introduction  
+  
+  
+>Gun culture in America is not a heavy point of political contention for no reason. Since the
+ratification of the second amendment in 1791, bearing arms has become a characteristic of freedom and American virtues. The ability for dangerous weaponry to preside in the hands of the citizens symbolizes the power distribution our founding fathers had hoped to maintain.
+  
+>However, the need for gun culture becomes more questionable with its symptoms, gun terrorism and
+suicides, becoming more prevalant in America. It calls into question the need for certain levels and grades of guns, developed to advancement in the centuries since, that go beyond necessity in the defense of one's home as pronounced by the constitution. The question, then, is why many individuals go beyond to preserve their right to owning these weapons.
+  
+>One hypothesis for this comes from the observations of political affairs in America. As political sects
+become more polarized, two prominent camps can be distinguished-- those who look to the government for the canvasing and resolution of dilemmas, and those who strive for liberty from the hold of government on themselves and their peers. Following the history of gun culture, it would make sense for the latter to have a higher correlation with the ownership of higher degrees of firearms. The following analysis will seek to examine this hypothesis.
+  
+  
+### Data  
+
+
+>This research will use two datasets from [Pew Research Center](https://www.pewsocialtrends.org/). Originally collected for an [article](https://www.pewsocialtrends.org/2017/06/22/americas-complex-relationship-with-guns/) examining the trends of gun attitudes in the US, the raw data of Pew's Panel Wave 25 and 26 contain data valuable for this research question. 
+
+
+```{r}
+gunData <- read_sav("ATP W26.sav")
+suppGunData <- read_sav("ATP W25.sav")
+```
+
+>First and foremost, an examination of the number of cases in both tables:
+
+```{r}
+nrow(gunData)
+nrow(suppGunData)
+```
+
+
+> Now, an inspection of the first 10 rows on both tables:
+
+```{r}
+headGunData<-
+gunData%>%
+  head(10)
+
+headSuppGunData<-
+suppGunData %>%
+  head(10)
+
+headGunData
+headSuppGunData
+```
+>We can see from here that both tables are sorted in ascending order by its Qkey variable. There are 147 variables in the first table, and 158 variables in the second table. One case represents one survey, with Qkey representing the survey number, and the variables representing the questions asked by the survey. The numbers under each variable represent the answer of the respondent to that question, in a multiple choice fashion. Therefore, the variables in both tables are categorical. 
+
+
+>An inspection of the structure of the objects:
+
+
+```{r eval=FALSE, include=TRUE}
+str(gunData)
+str(suppGunData)
+```
+
+>Finally, to aid us in the data wrangling, an inspection of the column names:
+
+```{r}
+colnames(gunData)
+colnames(suppGunData)
+```
+
+
+> Since the raw data was in a sav file, the package haven needed to be imported to read the data format and relabel them. The data structure reveals that the name of the value is wrapped as an attribute, as well as the label. The label itself is a haven_labelled format-- this will need to be dealt with during the data wrangling process. We can also begin to see some relevent variables for this analysis. This will be explored in further detail in the next section.
+
+### Wrangling 
+
+> From the documentation, there seems to be many variables that suit the purposes of this research question. >From our first dataset, we have:
+- POL1DT: Do you approve or disapprove of the way Donald Trump is handling his job as President?
+- POL1DTSTR: Do you [IF POL1DT=1: approve; IF POL1DT=2: disapprove] of the way Donald Trump is handling his job as President very strongly, or not so strongly? 
+- GUN: Do you personally own any guns (NOT including air guns, such as paintball, BB or pellet guns)? 
+- TRUSTFEDGOV: Generally speaking, how much of the time do you think you can trust the federal government to do what is right? 
+- GUNTYPEOWN: Do you currently or have you ever owned any of the following? 
+
+>From our second dataset, we have:
+- GUNTYPE: Which comes closest to your view about the TYPES OF GUNS that should be legally available to buy in the United States? 
+- PARTY	In politics today, do you consider yourself a (republican or democrat)?
+- GUNTYPE_OE: In your own words, what are some of the types of guns you think should NOT be legally available to buy in the United States? 
+
+
+> In order to draw conclusions from these datasets, the first step is consolidate these tables and remove the clutter.
+
+```{r}
+gunData<-
+gunData %>% 
+  select(QKEY, GUN_W26,POL1DT_W26,POL1DTSTR_W26,TRUSTFEDGOV_W26,GUNTYPEOWNA_W26,GUNTYPEOWNB_W26,GUNTYPEOWNC_W26)%>%
+  mutate(QKEY = as_factor(QKEY))%>%
+  mutate(GUN_W26 = as_factor(GUN_W26))%>%
+  mutate(POL1DT_W26 = as_factor(POL1DT_W26))%>%
+  mutate(POL1DTSTR_W26 = as_factor(POL1DTSTR_W26))%>%
+  mutate(TRUSTFEDGOV_W26 = as_factor(TRUSTFEDGOV_W26))%>%
+  mutate(GUNTYPEOWNA_W26 = as_factor(GUNTYPEOWNA_W26))%>%
+  mutate(GUNTYPEOWNB_W26 = as_factor(GUNTYPEOWNB_W26))%>%
+  mutate(GUNTYPEOWNC_W26 = as_factor(GUNTYPEOWNC_W26))
+
+gunData%>%
+  head(10)
+```
+
+```{r}
+suppGunData<-
+suppGunData %>% 
+  select(QKEY, GUNTYPE_W25,PARTY_W25)%>%
+  mutate(QKEY = as_factor(QKEY))%>%
+  mutate(GUNTYPE_W25 = as_factor(GUNTYPE_W25))%>%
+  mutate(PARTY_W25 = as_factor(PARTY_W25))
+
+suppGunData%>%
+  head(10)
+```
+
+>According to the methodologies page for the original article, the two waves of research are a combined pool of respondants. This deduction allows us to join the two tables on QKEY.
+
+```{r}
+joinedData<-
+  gunData%>%
+  full_join(suppGunData)
+joinedData
+```
+
+> Before we clean the data, this is an estimate of how many cases there need to be at the end of the cleaning(keeping the cases of respondents who don't own guns is unecessary)
+
+```{r}
+joinedData%>%
+  group_by(GUN_W26)%>%
+  summarise(count=n())
+```
+
+
+>Some of the answers are unnecessarily long, so they will be changed to display better on visualizations.
+
+```{r}
+joinedDataShort<-
+joinedData %>% 
+  mutate(GUN_W26 = gsub(pattern = "No, I don't own any guns", replacement = "No", GUN_W26),
+         GUN_W26 = gsub(pattern = "Yes, I own a gun", replacement = "Yes", GUN_W26),
+         TRUSTFEDGOV_W26 = gsub(pattern = "Just about always", replacement = "Always", TRUSTFEDGOV_W26),
+         TRUSTFEDGOV_W26 = gsub(pattern = "Most of the time", replacement = "Mostly", TRUSTFEDGOV_W26),
+         TRUSTFEDGOV_W26 = gsub(pattern = "Only some of the time", replacement = "Sometimes", TRUSTFEDGOV_W26),
+         GUNTYPEOWNA_W26 = gsub(pattern = "Yes, I currently own", replacement = "Yes", GUNTYPEOWNA_W26),
+         GUNTYPEOWNA_W26 = gsub(pattern = "No, I have never owned", replacement = "No", GUNTYPEOWNA_W26),
+         GUNTYPEOWNA_W26 = gsub(pattern = "Yes, I have owned in the past but do not currently own", replacement = "In the Past", GUNTYPEOWNA_W26),
+         GUNTYPE_W25 = gsub(pattern = "Some types should, but most types should NOT", replacement = "Some should", GUNTYPE_W25),
+         GUNTYPE_W25 = gsub(pattern = "Almost all types should", replacement = "All should", GUNTYPE_W25),
+         GUNTYPE_W25 = gsub(pattern = "Most types should, but some types should NOT", replacement = "Most should", GUNTYPE_W25),
+         GUNTYPE_W25 = gsub(pattern = "Almost no types should", replacement = "None should", GUNTYPE_W25))
+
+joinedDataShort
+```
+
+>This cleaned data will be used to prepare tables from which the visualizations will be made. Each graph will provide evidence to clear some nuance from the research question.
+
+1) Trust in Federal Government and Ownership of Gun Type A
+```{r}
+GunTypeA<-
+joinedDataShort%>%
+  select(QKEY,TRUSTFEDGOV_W26, GUNTYPEOWNA_W26)%>%
+  gather(Type,Own,GUNTYPEOWNA_W26)%>%
+  select(QKEY, TRUSTFEDGOV_W26,Own)%>%
+  filter(!is.na(TRUSTFEDGOV_W26))%>%
+  filter(!is.na(Own))
+GunTypeA
+```
+2)Trust in Federal Government and Ownership of Gun Type B
+
+```{r}
+GunTypeB<-
+joinedDataShort%>%
+  select(QKEY,TRUSTFEDGOV_W26, GUNTYPEOWNB_W26)%>%
+  gather(Type,Own,GUNTYPEOWNB_W26)%>%
+  select(QKEY, TRUSTFEDGOV_W26,Own)%>%
+  filter(!is.na(TRUSTFEDGOV_W26))%>%
+  filter(!is.na(Own))
+GunTypeB
+```
+
+
+3)Trust in Federal Government and Ownership of Gun Type C
+
+```{r}
+GunTypeC<-
+joinedDataShort%>%
+  select(QKEY,TRUSTFEDGOV_W26, GUNTYPEOWNC_W26)%>%
+  gather(Type,Own,GUNTYPEOWNC_W26)%>%
+  select(QKEY, TRUSTFEDGOV_W26,Own)%>%
+  filter(!is.na(TRUSTFEDGOV_W26))%>%
+  filter(!is.na(Own))
+GunTypeC
+```
+
+
+### Visualizations  
+
+
+
+```{r}
+GunTypeA %>%
+  ggplot(aes(x=TRUSTFEDGOV_W26))+
+  geom_bar()+
+  labs (y= "Number of respondants with Gun Type A", x = "How often is the government to be trusted?")+
+  labs(title="Gun ownership of Type A by different levels of gun trust")
+```
+```{r}
+GunTypeB %>%
+  ggplot(aes(x=TRUSTFEDGOV_W26))+
+  geom_bar()+
+  labs (y= "Number of respondants with Gun Type B", x = "How often is the government to be trusted?")+
+  labs(title="Gun ownership of Type B by different levels of gun trust")
+```
+
+```{r}
+GunTypeC %>%
+  ggplot(aes(x=TRUSTFEDGOV_W26))+
+  geom_bar()+
+  labs (y= "Number of respondants with Gun Type C", x = "How often is the government to be trusted?")+
+  labs(title="Gun ownership of Type C by different levels of gun trust")
+
+
+```
+
+> Side note: I think its important to note that I may have screwed something up here. These graphs are exactly the same-- I don't think that should be the case. Going back through my code, however, I don't see an issue-- my tables for Gun type A, B, and C are very different. Approaching the research question through different variables, however, leads me to a similar conclusion, so I will finish my analysis using these charts though they may not be entirely accurate.
+
+>We can see that gun ownership of A,B, and C type guns are highest when the government is trusted sometimes, as well as mostly. It is lower at never, and even lower at always. There is a hypothesis that will be explored in the conclusion as to why this is.
+
+
+```{r}
+joinedDataShort %>%
+  ggplot(aes(x=GUNTYPE_W25))+
+  geom_bar()+
+  facet_wrap(vars(TRUSTFEDGOV_W26))+
+  coord_flip()+
+  labs (y= "Number of respondants", x = "How many types of guns should be allowed?")+
+  labs(title="Opinion on gun ownership, faceted by trust of government")
+```
+
+
+
+>To further check this, the trust of government variable is pitched against a different variable. This time, the respondant doesnt necessarily own a gun, but states their opinion on what kinds of guns a US citizen should be able to have. We can see most respondant answered sometimes, and most answered that most guns should be available for ownership, followed by some guns, all guns, then no guns. The distribution is very similar in every one of our facets.
+
+
+```{r}
+joinedDataShort%>%
+  ggplot(aes(x=POL1DT_W26, fill=GUNTYPE_W25)) + 
+  geom_density(aes(group=GUNTYPE_W25), alpha=0.50)+
+  labs (y= "density", x = "Approval of current administration")
+```
+
+
+> Here is a density curve based on the same opinion variable on guns as the last graph, but this time against approval of the current administration. People who disapproved thought most that none should have guns, followed by some should have guns. People who approve of the administration thought the opposite-- most thought that people should have all guns, followed by most guns, and so on.
+
+
+### Conclusion  
+
+> The above graphs show different posings of the research question. What is noticable in all the graphs is that in every scenerio, people who posess levels of guns, or people who think there should be a right to posess levels of guns, fall into the moderately high or moderately low approval and trust of the government. According to trust of the government, the distribution of gun ownership do not change depending on the level of trust. The story is different, however, when if comes to approval of the current administration. There is a reverse correlation for those who approve and those who dont when it comes to opinions on gun ownership.
+
+>Personally, I have a hypothesis for this. It makes sense for people who don't trust the government at all to not want to register for guns, and therefore admit on a survey that they have guns. Approval of the administration may not have as much to do with trusting the administration, rather the government acting in their interest. 
